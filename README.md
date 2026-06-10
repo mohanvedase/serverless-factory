@@ -1,10 +1,10 @@
-# 🏭 Serverless Automation Factory
+#  Serverless Automation Factory
 
 A professional Flask-based web application for deploying and demonstrating AWS Serverless architectures — built for classroom training environments.
 
 ---
 
-## 📋 Overview
+## Overview
 
 The **Serverless Automation Factory** is a complete cloud management dashboard that allows instructors and learners to:
 
@@ -14,7 +14,7 @@ The **Serverless Automation Factory** is a complete cloud management dashboard t
 
 ---
 
-## 🏗️ Supported Workflows
+## Supported Workflows
 
 ### 1. Resume Processing Pipeline
 ```
@@ -44,7 +44,7 @@ E-commerce scenario: Full order lifecycle with:
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -55,7 +55,7 @@ E-commerce scenario: Full order lifecycle with:
 
 ---
 
-## 🚀 Setup Instructions
+##  Setup Instructions
 
 ### Prerequisites
 
@@ -144,7 +144,7 @@ Open your browser at: **http://localhost:5000**
 
 ---
 
-## 📱 Dashboard Pages
+## Dashboard Pages
 
 | Page | URL | Description |
 |------|-----|-------------|
@@ -158,7 +158,7 @@ Open your browser at: **http://localhost:5000**
 
 ---
 
-## 🎓 Classroom Demo Flow
+## Classroom Demo Flow
 
 ### Demo 1: Resume Processing Pipeline
 
@@ -204,7 +204,7 @@ Open your browser at: **http://localhost:5000**
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 serverless_factory/
@@ -252,7 +252,7 @@ serverless_factory/
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 ### Resume Pipeline
 | Method | Endpoint | Description |
@@ -283,7 +283,7 @@ serverless_factory/
 
 ---
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. **SES email verification is required** before deploying the Order Pipeline. Verify your email in AWS SES Console (us-east-1) → Verified Identities.
 2. **IAM Role Creation requires `iam:CreateRole` permission** — ensure your AWS user has this.
@@ -295,7 +295,7 @@ serverless_factory/
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -310,6 +310,6 @@ serverless_factory/
 
 ---
 
-## 📄 License
+## License
 
 MIT — Free to use for educational purposes.
