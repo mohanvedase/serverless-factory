@@ -166,8 +166,8 @@ User submits order
         │
         ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    AWS Step Functions                    │
-│                  (Workflow Orchestrator)                 │
+│                    AWS Step Functions                   │
+│                  (Workflow Orchestrator)                │
 │                                                         │
 │   ┌───────────────┐                                     │
 │   │ ValidateOrder │ ── validates order_id, amount       │
@@ -182,7 +182,7 @@ User submits order
 │          │ success                                      │
 │          ▼                                              │
 │   ┌───────────────┐                                     │
-│   │SendNotification ── SES email + SNS publish         │
+│   │SendNotification ── SES email + SNS publish          │
 │   │    Lambda     │                                     │
 │   └──────┬────────┘                                     │
 │          │                                              │
@@ -191,14 +191,14 @@ User submits order
 │                                                         │
 │   ── FAILURE PATHS ──────────────────────────────────── │
 │                                                         │
-│   ValidateOrder fails ──▶ NotifyOrderFailed Lambda      │
+│   ValidateOrder fails ──▶ NotifyOrderFailed Lambda     │
 │                               (SES email + SNS)         │
-│                          ──▶ ❌ OrderFailed             │
+│                          ──▶ ❌ OrderFailed            │
 │                                                         │
-│   ProcessPayment fails ──▶ NotifyPaymentFailed Lambda   │
+│   ProcessPayment fails ──▶ NotifyPaymentFailed Lambda  │
 │   (after 3 retries)           (SES email + SNS)         │
 │                          ──▶ SendToDLQ (SQS DLQ)        │
-│                          ──▶ ❌ PaymentFailed           │
+│                          ──▶ ❌ PaymentFailed          │
 └─────────────────────────────────────────────────────────┘
         │                         │
         ▼                         ▼
