@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+{% block title %}Resume Pipeline — Serverless Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-file-lines me-2" style="color:var(--sf-primary-light)"></i>Resume Processing Pipeline</h1>
+  {% if deployment and deployment.status == 'ACTIVE' %}
+  <span class="badge badge-active fs-6 px-3 py-2 pulse">● Pipeline Active</span>
+  {% else %}
+  <span class="badge badge-destroyed fs-6 px-3 py-2">○ Not Deployed</span>
+  {% endif %}
+</div>
+
+<!-- IAM / Credentials info banner -->
+<div class="card-sf mb-3" id="credBanner">
+  <div class="card-header justify-content-between">
+    <span><i class="fa-solid fa-shield-halved me-2" style="color:var(--sf-warning)"></i>AWS Credentials &amp; IAM — Pre-flight Check</span>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="checkCredentials()">
+      <i class="fa-solid fa-circle-check me-1"></i>Check Now
+    </button>
+  </div>
+  <div class="card-body">
+
+    <!-- How it works -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div style="background:var(--sf-surface2);border-radius:.6rem;padding:1rem;border:1px solid var(--sf-border)">
+          <p class="mb-2" style="font-size:.78rem;font-weight:700;color:var(--sf-muted);text-transform:uppercase;letter-spacing:.07em">
+            <i class="fa-solid fa-key me-1 text-warning"></i>What you provide
+          </p>
+          <div class="d-flex align-items-start gap-2 mb-2">
+            <span class="badge bg-secondary mt-1" style="font-size:.65rem;flex-shrink:0">ENV</span>
+            <div>
+              <code style="font-size:.75rem;color:var(--sf-accent)">AWS_ACCESS_KEY_ID</code><br>
+              <code style="font-size:.75rem;color:var(--sf-accent)">AWS_SECRET_ACCESS_KEY</code><br>
+              <code style="font-size:.75rem;color:var(--sf-accent)">AWS_DEFAULT_REGION</code>
+              <div class="text-muted mt-1" style="font-size:.72rem">Set these in your <strong>.env</strong> file or as shell environment variables before running <code>python run.py</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div style="background:var(--sf-surface2);border-radius:.6rem;padding:1rem;border:1px solid var(--sf-border)">
+          <p class="mb-2" style="font-size:.78rem;font-weight:700;color:var(--sf-muted);text-transform:uppercase;letter-spacing:.07em">
+            <i class="fa-solid fa-user-shield me-1 text-primary"></i>What the app creates
+          </p>
+          <div class="d-flex align-items-start gap-2">
+            <span class="badge" style="background:rgba(124,58,237,.2);color:#a78bfa;font-size:.65rem;flex-shrink:0;margin-top:2px">AUTO</span>
+            <div>
+              <strong style="font-size:.8rem">IAM Execution Role</strong>
+              <div class="text-muted mt-1" style="font-size:.72rem">
+                The app calls <code>iam:CreateRole</code> and attaches policies so Lambda can access S3, DynamoDB, SNS, and CloudWatch Logs.
+                <br>The role name is set in the form below.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IAM user required permissions -->
+    <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:.6rem;padding:.85rem">
+      <p class="mb-2" style="font-size:.78rem;font-weight:700;color:var(--sf-warning)">
+        <i class="fa-solid fa-triangle-exclamation me-1"></i>Your IAM User must have these permissions
+      </p>
+      <div class="d-flex flex-wrap gap-1">
+        {% for p in ['IAMFullAccess','AmazonS3FullAccess','AWSLambda_FullAccess','AmazonDynamoDBFullAccess','AmazonSNSFullAccess','CloudWatchLogsFullAccess'] %}
+        <code style="font-size:.72rem;background:rgba(245,158,11,.12);color:#fcd34d;padding:.2rem .5rem;border-radius:.3rem">{{ p }}</code>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Credential check result -->
+    <div id="credResult" class="mt-3" style="display:none"></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- LEFT: Deploy form -->
+  <div class="col-lg-5">
+    <div class="card-sf">
+      <div class="card-header"><i class="fa-solid fa-rocket me-2" style="color:var(--sf-primary-light)"></i>Deploy Pipeline</div>
+      <div class="card-body">
+        <form id="deployForm" autocomplete="off">
+
+          <!-- SECTION: Basic Config -->
+          <div class="form-section-label">Basic Configuration</div>
+
+          <div class="mb-3">
+            <label class="form-label">Project Name</label>
+            <input type="text" class="form-control" id="projectName" value="ResumeFactory" required>
+            <div class="form-text">Used as prefix for all created resources</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">AWS Region</label>
+            <select class="form-select" id="region" onchange="checkCredentials()">
+              {% for val, label in regions %}
+              <option value="{{ val }}" {% if val == 'us-east-1' %}selected{% endif %}>{{ val }} — {{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">S3 Bucket Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="bucketName" placeholder="my-resume-bucket-2024" required>
+            <div class="form-text">Globally unique · lowercase · no underscores · no spaces</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">DynamoDB Table Name</label>
+            <input type="text" class="form-control" id="tableName" value="ResumeProcessing">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">SNS Topic Name</label>
+            <input type="text" class="form-control" id="snsTopicName" value="ResumeNotifications">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Lambda Function Name</label>
+            <input type="text" class="form-control" id="lambdaName" value="ResumeProcessor">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notification Email <span class="text-danger">*</span></label>
+            <input type="email" class="form-control" id="email" placeholder="hr@company.com" required>
+            <div class="form-text">AWS SNS will send a confirmation email — you must click the link first</div>
+          </div>
+
+          <!-- SECTION: IAM Role -->
+          <hr style="border-color:var(--sf-border);margin:1.2rem 0 1rem">
+          <div class="form-section-label">
+            <i class="fa-solid fa-shield-halved me-1" style="color:var(--sf-warning)"></i>IAM Role (Auto-Created)
+          </div>
+
+          <div class="mb-2" style="background:rgba(124,58,237,.07);border:1px solid var(--sf-border);border-radius:.6rem;padding:.75rem;font-size:.8rem;color:var(--sf-muted)">
+            <i class="fa-solid fa-circle-info me-1 text-info"></i>
+            This role is <strong>created by the app</strong> in your AWS account. Lambda will use it to access S3, DynamoDB, SNS, and CloudWatch Logs.
+            The name must be <strong>unique in IAM</strong> — if it already exists the app will reuse it.
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Lambda Execution Role Name</label>
+            <div class="input-group">
+              <span class="input-group-text" style="background:var(--sf-surface2);border-color:var(--sf-border)">
+                <i class="fa-solid fa-user-shield" style="color:var(--sf-warning)"></i>
+              </span>
+              <input type="text" class="form-control" id="roleName" value="{{ default_role_name }}" required>
+            </div>
+            <div class="form-text">Policies attached: LambdaBasicExecution, DynamoDBFullAccess, SNSFullAccess, S3ReadOnly</div>
+          </div>
+
+          <button type="submit" class="btn btn-sf-primary w-100 py-2 mt-2" id="deployBtn">
+            <i class="fa-solid fa-rocket me-2"></i>Deploy Pipeline
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Deploy progress -->
+    <div class="card-sf mt-3" id="progressCard" style="display:none">
+      <div class="card-header"><i class="fa-solid fa-spinner fa-spin me-2 text-info"></i>Deployment Progress</div>
+      <div class="card-body" id="progressSteps"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Status + Test -->
+  <div class="col-lg-7">
+    {% if deployment and deployment.status == 'ACTIVE' %}
+
+    <!-- Active resources with IAM role highlighted -->
+    <div class="card-sf mb-3">
+      <div class="card-header justify-content-between">
+        <span><i class="fa-solid fa-circle-check me-2 text-success"></i>Deployed Resources</span>
+        <span class="badge badge-active">{{ deployment.resources|length }} resources</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-borderless mb-0">
+          <thead><tr><th class="ps-4">Resource</th><th>Type</th><th>ARN / ID</th></tr></thead>
+          <tbody>
+          {% for key, res in deployment.resources.items() %}
+          <tr {% if res.type == 'IAM Role' %}style="background:rgba(245,158,11,.05)"{% endif %}>
+            <td class="ps-4 fw-semibold" style="font-size:.83rem">
+              {% if res.type == 'IAM Role' %}
+              <i class="fa-solid fa-shield-halved me-1" style="color:var(--sf-warning)"></i>
+              {% endif %}
+              {{ res.name }}
+            </td>
+            <td>
+              <span class="badge {% if res.type == 'IAM Role' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:.68rem">
+                {{ res.type }}
+              </span>
+            </td>
+            <td><span class="arn-cell d-inline-block" title="{{ res.arn }}">{{ res.arn }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Upload test -->
+    <div class="card-sf mb-3">
+      <div class="card-header"><i class="fa-solid fa-upload me-2" style="color:var(--sf-warning)"></i>Test: Upload Resume</div>
+      <div class="card-body">
+        <div class="drop-zone" id="dropZone">
+          <i class="fa-solid fa-cloud-arrow-up fa-2x mb-2 text-muted"></i>
+          <p class="text-muted mb-2" style="font-size:.85rem">Drag & drop a resume PDF here, or click to browse</p>
+          <input type="file" id="resumeFile" class="d-none" accept=".pdf,.doc,.docx,.txt">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('resumeFile').click()">
+            Choose File
+          </button>
+        </div>
+        <div id="uploadStatus" class="mt-3" style="display:none">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <div class="spinner-border spinner-border-sm text-info" id="uploadSpinner" style="display:none"></div>
+            <span id="uploadMsg" class="fw-semibold"></span>
+          </div>
+          <div id="processingTimeline"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DynamoDB records -->
+    <div class="card-sf">
+      <div class="card-header justify-content-between">
+        <span><i class="fa-solid fa-database me-2 text-success"></i>DynamoDB Records</span>
+        <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="loadRecords()">
+          <i class="fa-solid fa-rotate me-1"></i>Refresh
+        </button>
+      </div>
+      <div class="card-body p-0" id="recordsContainer">
+        <div class="text-center py-3 text-muted" style="font-size:.83rem">Click Refresh to load records</div>
+      </div>
+    </div>
+
+    {% else %}
+
+    <!-- Architecture diagram when not deployed -->
+    <div class="card-sf mb-3">
+      <div class="card-header"><i class="fa-solid fa-diagram-project me-2 text-info"></i>Pipeline Architecture</div>
+      <div class="card-body">
+        <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" class="w-100">
+          <defs>
+            <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L8,4 z" fill="#7c3aed"/>
+            </marker>
+          </defs>
+          <!-- Your IAM User -->
+          <rect x="10" y="10" width="120" height="40" rx="8" fill="rgba(245,158,11,.15)" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3"/>
+          <text x="70" y="27" text-anchor="middle" font-size="8.5" fill="#fcd34d" font-weight="700">YOUR IAM USER</text>
+          <text x="70" y="42" text-anchor="middle" font-size="7" fill="#94a3b8">Access Key + Secret</text>
+          <path d="M130 30 L160 30" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ar)"/>
+          <text x="145" y="25" text-anchor="middle" font-size="7" fill="#f59e0b">creates</text>
+
+          <!-- IAM Role -->
+          <rect x="162" y="10" width="120" height="40" rx="8" fill="rgba(245,158,11,.2)" stroke="#f59e0b" stroke-width="2"/>
+          <text x="222" y="27" text-anchor="middle" font-size="8.5" fill="#fcd34d" font-weight="700">IAM EXEC ROLE</text>
+          <text x="222" y="42" text-anchor="middle" font-size="7" fill="#94a3b8">Lambda uses this</text>
+
+          <!-- Arrow down to pipeline -->
+          <path d="M222 50 L222 75" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="230" y="66" font-size="7" fill="#7c3aed">attaches to</text>
+
+          <!-- Pipeline row -->
+          <rect x="30" y="80" width="80" height="38" rx="7" fill="rgba(124,58,237,.18)" stroke="#7c3aed" stroke-width="1.5"/>
+          <text x="70" y="96" text-anchor="middle" font-size="8" fill="#c4b5fd" font-weight="700">S3 BUCKET</text>
+          <text x="70" y="109" text-anchor="middle" font-size="7" fill="#94a3b8">Upload trigger</text>
+
+          <path d="M110 99 L128 99" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <rect x="130" y="80" width="80" height="38" rx="7" fill="rgba(6,182,212,.18)" stroke="#06b6d4" stroke-width="1.5"/>
+          <text x="170" y="96" text-anchor="middle" font-size="8" fill="#67e8f9" font-weight="700">LAMBDA</text>
+          <text x="170" y="109" text-anchor="middle" font-size="7" fill="#94a3b8">Uses IAM Role</text>
+
+          <path d="M210 99 L228 99" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <rect x="230" y="80" width="80" height="38" rx="7" fill="rgba(16,185,129,.18)" stroke="#10b981" stroke-width="1.5"/>
+          <text x="270" y="96" text-anchor="middle" font-size="8" fill="#6ee7b7" font-weight="700">DYNAMODB</text>
+          <text x="270" y="109" text-anchor="middle" font-size="7" fill="#94a3b8">Store record</text>
+
+          <path d="M310 99 L328 99" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <rect x="330" y="80" width="80" height="38" rx="7" fill="rgba(245,158,11,.18)" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="370" y="96" text-anchor="middle" font-size="8" fill="#fcd34d" font-weight="700">SNS</text>
+          <text x="370" y="109" text-anchor="middle" font-size="7" fill="#94a3b8">Email notify</text>
+
+          <!-- Policies box -->
+          <rect x="30" y="135" width="420" height="55" rx="8" fill="rgba(124,58,237,.06)" stroke="rgba(124,58,237,.2)" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="240" y="150" text-anchor="middle" font-size="7.5" fill="#a78bfa" font-weight="700">IAM Role Policies (auto-attached by app)</text>
+          <text x="100" y="167" text-anchor="middle" font-size="7" fill="#94a3b8">LambdaBasicExecution</text>
+          <text x="215" y="167" text-anchor="middle" font-size="7" fill="#94a3b8">DynamoDBFullAccess</text>
+          <text x="320" y="167" text-anchor="middle" font-size="7" fill="#94a3b8">SNSFullAccess</text>
+          <text x="415" y="167" text-anchor="middle" font-size="7" fill="#94a3b8">S3ReadOnly</text>
+          <text x="100" y="181" text-anchor="middle" font-size="7" fill="#64748b">(write Lambda logs)</text>
+          <text x="215" y="181" text-anchor="middle" font-size="7" fill="#64748b">(PutItem, GetItem)</text>
+          <text x="320" y="181" text-anchor="middle" font-size="7" fill="#64748b">(Publish to topic)</text>
+          <text x="415" y="181" text-anchor="middle" font-size="7" fill="#64748b">(read uploaded file)</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card-sf">
+      <div class="card-body text-center py-4">
+        <i class="fa-solid fa-file-lines fa-3x mb-3 text-muted opacity-25"></i>
+        <h5 class="text-muted mb-2">Pipeline Not Deployed</h5>
+        <p class="text-muted mb-0" style="font-size:.85rem">Fill in the form and click <strong>Deploy Pipeline</strong> to create all AWS resources.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_css %}
+<style>
+.form-section-label{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--sf-muted);margin-bottom:.75rem;padding-bottom:.4rem;border-bottom:1px solid var(--sf-border);}
+</style>
+{% endblock %}
+{% block extra_js %}
+<script>
+// ── Credential check ────────────────────────────────────────────────────────
+async function checkCredentials(){
+  const region  = document.getElementById('region')?.value || 'us-east-1';
+  const resultEl = document.getElementById('credResult');
+  resultEl.style.display = '';
+  resultEl.innerHTML = '<div class="text-muted" style="font-size:.82rem"><span class="spinner-border spinner-border-sm me-2 text-info"></span>Checking AWS credentials…</div>';
+
+  try {
+    const res  = await fetch('/api/check-credentials?region=' + region);
+    const data = await res.json();
+
+    if (!data.credentials_valid) {
+      resultEl.innerHTML = `
+        <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:.6rem;padding:.85rem">
+          <p class="mb-2 fw-bold" style="color:var(--sf-danger);font-size:.83rem"><i class="fa-solid fa-circle-xmark me-1"></i>Credentials Invalid</p>
+          ${data.errors.map(e => `<div style="font-size:.78rem;color:#fca5a5">${e}</div>`).join('')}
+          <div class="mt-2 p-2 rounded" style="background:rgba(0,0,0,.2);font-size:.75rem;font-family:monospace;color:#94a3b8">
+            # Set in terminal before running:<br>
+            export AWS_ACCESS_KEY_ID=your_key<br>
+            export AWS_SECRET_ACCESS_KEY=your_secret<br>
+            export AWS_DEFAULT_REGION=${region}<br>
+            # Or copy .env.example → .env and fill values
+          </div>
+        </div>`;
+      return;
+    }
+
+    const allOk = data.errors.length === 0;
+    const warnCount = data.warnings.length;
+
+    // Count permission check results
+    const perms = data.iam_permissions || {};
+    const total = Object.keys(perms).length;
+    const allowed = Object.values(perms).filter(Boolean).length;
+    const denied  = total - allowed;
+
+    resultEl.innerHTML = `
+      <div style="background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.25);border-radius:.6rem;padding:.85rem">
+        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+          <span class="fw-bold" style="color:var(--sf-success);font-size:.84rem">
+            <i class="fa-solid fa-circle-check me-1"></i>Credentials Valid
+          </span>
+          <span class="text-muted" style="font-size:.78rem">Account: <code>${data.account_id}</code></span>
+          <span class="text-muted" style="font-size:.78rem">Region: <code>${data.region}</code></span>
+        </div>
+        <div class="text-muted mb-2" style="font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${data.user_arn}">
+          ARN: <code>${data.user_arn}</code>
+        </div>
+        ${total > 0 ? `
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <span style="font-size:.75rem;color:var(--sf-success)"><i class="fa-solid fa-check me-1"></i>${allowed}/${total} permissions allowed</span>
+          ${denied > 0 ? `<span style="font-size:.75rem;color:var(--sf-warning)"><i class="fa-solid fa-triangle-exclamation me-1"></i>${denied} denied</span>` : ''}
+        </div>` : ''}
+        ${warnCount > 0 ? `<div class="mt-2">${data.warnings.slice(0,3).map(w=>`<div style="font-size:.72rem;color:var(--sf-warning)"><i class="fa-solid fa-triangle-exclamation me-1"></i>${w}</div>`).join('')}</div>` : ''}
+      </div>`;
+  } catch(err) {
+    resultEl.innerHTML = `<div class="text-muted" style="font-size:.8rem">Could not connect to check credentials.</div>`;
+  }
+}
+
+// ── Deploy ──────────────────────────────────────────────────────────────────
+document.getElementById('deployForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const btn = document.getElementById('deployBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deploying AWS resources…';
+  document.getElementById('progressCard').style.display = '';
+  document.getElementById('progressSteps').innerHTML = '';
+
+  const payload = {
+    project_name:   document.getElementById('projectName').value,
+    region:         document.getElementById('region').value,
+    bucket_name:    document.getElementById('bucketName').value,
+    table_name:     document.getElementById('tableName').value,
+    sns_topic_name: document.getElementById('snsTopicName').value,
+    lambda_name:    document.getElementById('lambdaName').value,
+    email:          document.getElementById('email').value,
+    role_name:      document.getElementById('roleName').value,
+  };
+
+  try {
+    const res  = await fetch('/api/deploy/resume', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const data = await res.json();
+    renderSteps(data.steps || []);
+    if (data.success) {
+      showToast('Pipeline deployed successfully!', 'success');
+      setTimeout(() => location.reload(), 1800);
+    } else {
+      showToast(data.error || 'Deployment failed', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-rocket me-2"></i>Deploy Pipeline';
+    }
+  } catch(err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-rocket me-2"></i>Deploy Pipeline';
+  }
+});
+
+function renderSteps(steps){
+  const c = document.getElementById('progressSteps');
+  c.innerHTML = '';
+  steps.forEach(s => {
+    const ok = s.status === 'ok';
+    const icon = ok ? 'fa-check' : (s.status === 'error' ? 'fa-xmark' : 'fa-spinner fa-spin');
+    c.innerHTML += `<div class="step-item">
+      <div class="step-dot ${s.status}"><i class="fa-solid ${icon}"></i></div>
+      <span>${s.message}</span>
+      ${s.error ? `<small class="text-danger ms-auto" style="font-size:.72rem">${s.error}</small>` : ''}
+    </div>`;
+  });
+}
+
+// ── Upload ──────────────────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+if (dz) {
+  document.getElementById('resumeFile').addEventListener('change', function(){ if(this.files[0]) doUpload(this.files[0]); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
+}
+
+async function doUpload(file) {
+  const statusDiv = document.getElementById('uploadStatus');
+  const timeline  = document.getElementById('processingTimeline');
+  const msgEl     = document.getElementById('uploadMsg');
+  const spinner   = document.getElementById('uploadSpinner');
+
+  statusDiv.style.display = '';
+  timeline.innerHTML = '';
+  spinner.style.display = '';
+  msgEl.textContent = `Uploading ${file.name} to S3…`;
+
+  const steps = [
+    { delay: 0,    label: 'File uploaded to S3 Bucket' },
+    { delay: 1200, label: 'S3 ObjectCreated event fired' },
+    { delay: 2500, label: 'Lambda function invoked (using IAM Role)' },
+    { delay: 4000, label: 'Resume metadata extracted' },
+    { delay: 5200, label: 'Record stored in DynamoDB' },
+    { delay: 6400, label: 'SNS email notification sent' },
+  ];
+
+  const fd = new FormData();
+  fd.append('resume', file);
+  fetch('/api/resume/upload', { method:'POST', body: fd });
+
+  steps.forEach((s, i) => {
+    setTimeout(() => {
+      timeline.innerHTML += `<div class="timeline-item done" style="font-size:.83rem"><strong>${s.label}</strong></div>`;
+      if (i === steps.length - 1) {
+        spinner.style.display = 'none';
+        msgEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i>Processing complete for <em>${file.name}</em></span>`;
+        loadRecords();
+      }
+    }, s.delay);
+  });
+}
+
+// ── DynamoDB Records ─────────────────────────────────────────────────────────
+async function loadRecords(){
+  const c = document.getElementById('recordsContainer');
+  if (!c) return;
+  c.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm text-info"></span></div>';
+  const res  = await fetch('/api/resume/records');
+  const data = await res.json();
+  if (!data.records || !data.records.length) {
+    c.innerHTML = '<div class="text-center py-3 text-muted" style="font-size:.83rem">No records yet. Upload a resume to test the pipeline.</div>';
+    return;
+  }
+  let html = `<div class="table-responsive"><table class="table table-borderless mb-0">
+    <thead><tr><th class="ps-4">File Name</th><th>Size</th><th>Processing</th><th>Notification</th><th>Uploaded</th></tr></thead><tbody>`;
+  data.records.forEach(r => {
+    const sz = r.file_size ? `${(r.file_size/1024).toFixed(1)} KB` : '—';
+    html += `<tr>
+      <td class="ps-4 fw-semibold" style="font-size:.82rem">${r.file_name || r.resume_id}</td>
+      <td style="font-size:.78rem">${sz}</td>
+      <td><span class="badge badge-active">${r.processing_status || 'PROCESSED'}</span></td>
+      <td><span class="badge ${r.notification_status === 'SENT' ? 'badge-active' : 'badge-deploying'}">${r.notification_status || 'PENDING'}</span></td>
+      <td class="text-muted" style="font-size:.75rem">${(r.upload_time||'').substring(0,19).replace('T',' ')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  c.innerHTML = html;
+}
+
+// Auto-check credentials on page load
+checkCredentials();
+</script>
+{% endblock %}

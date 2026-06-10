@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}CloudWatch Logs — Serverless Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-terminal me-2" style="color:var(--sf-accent)"></i>CloudWatch Log Viewer</h1>
+</div>
+
+<!-- Controls -->
+<div class="card-sf mb-3">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">AWS Region</label>
+        <select class="form-select" id="regionSelect">
+          {% for val, label in regions %}
+          <option value="{{ val }}" {% if val == 'us-east-1' %}selected{% endif %}>{{ val }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Lambda Function Name</label>
+        <input type="text" class="form-control" id="functionName" placeholder="e.g. ResumeProcessor">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Time Range</label>
+        <select class="form-select" id="hoursSelect">
+          <option value="1">Last 1 hour</option>
+          <option value="3">Last 3 hours</option>
+          <option value="6">Last 6 hours</option>
+          <option value="12">Last 12 hours</option>
+          <option value="24">Last 24 hours</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">&nbsp;</label>
+        <button class="btn btn-sf-primary w-100" onclick="fetchLogs()">
+          <i class="fa-solid fa-magnifying-glass me-2"></i>Fetch Logs
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick-access function buttons -->
+<div class="card-sf mb-3" id="quickCard">
+  <div class="card-header"><i class="fa-solid fa-bolt me-2 text-warning"></i>Quick Access — Active Lambda Functions</div>
+  <div class="card-body py-2" id="quickButtons">
+    <span class="text-muted" style="font-size:.83rem">Loading…</span>
+  </div>
+</div>
+
+<!-- Log groups -->
+<div class="card-sf mb-3" id="groupsCard" style="display:none">
+  <div class="card-header"><i class="fa-solid fa-folder-open me-2 text-warning"></i>Available Log Groups</div>
+  <div class="card-body" id="groupsList"></div>
+</div>
+
+<!-- Log output -->
+<div class="card-sf">
+  <div class="card-header justify-content-between">
+    <span><i class="fa-solid fa-scroll me-2 text-success"></i>Log Output</span>
+    <div class="d-flex gap-2 ms-auto align-items-center">
+      <span id="logCount" class="badge bg-secondary">0 entries</span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+        <i class="fa-solid fa-trash me-1"></i>Clear
+      </button>
+    </div>
+  </div>
+  <div class="log-viewer" id="logViewer">
+    <div class="text-muted">
+      <span style="color:var(--sf-primary-light)">$</span> Select a Lambda function name above and click <strong>Fetch Logs</strong><br>
+      <span style="color:var(--sf-muted)">Tip: Use the quick-access buttons to load logs instantly from deployed functions</span>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+async function fetchLogs(){
+  const region = document.getElementById('regionSelect').value;
+  const fn     = document.getElementById('functionName').value.trim();
+  const hours  = document.getElementById('hoursSelect').value;
+  const viewer = document.getElementById('logViewer');
+
+  if (!fn) { showToast('Enter a function name first','warn'); return; }
+
+  viewer.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm text-info me-2"></span>Fetching CloudWatch logs…</div>';
+
+  const res  = await fetch(`/api/logs?region=${region}&function=${encodeURIComponent(fn)}&hours=${hours}`);
+  const data = await res.json();
+
+  // Show log groups
+  if (data.log_groups && data.log_groups.length){
+    document.getElementById('groupsCard').style.display='';
+    document.getElementById('groupsList').innerHTML = data.log_groups.slice(0,20).map(g =>
+      `<button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="quickLoad('${g.replace('/aws/lambda/','')}')">${g}</button>`
+    ).join('');
+  }
+
+  if (!data.success) {
+    viewer.innerHTML = `<div style="color:var(--sf-danger)">Error: ${data.error}</div>`;
+    return;
+  }
+  if (!data.logs || !data.logs.length) {
+    viewer.innerHTML = `<div class="text-muted">No logs found for <strong>${fn}</strong> in the last ${hours} hour(s).<br>Make sure the function has been invoked and the name is correct.</div>`;
+    document.getElementById('logCount').textContent = '0 entries';
+    return;
+  }
+
+  document.getElementById('logCount').textContent = data.logs.length + ' entries';
+  viewer.innerHTML = data.logs.map(l => {
+    const isErr  = /error|exception|fail/i.test(l.message);
+    const isWarn = /warn|timeout|cold/i.test(l.message);
+    const cls    = isErr ? ' err' : (isWarn ? ' warn' : '');
+    return `<div class="log-entry${cls}"><span style="color:var(--sf-muted)">[${l.timestamp}]</span> ${esc(l.message)}</div>`;
+  }).join('');
+}
+
+function quickLoad(fn){ document.getElementById('functionName').value=fn; fetchLogs(); }
+function clearLogs(){ document.getElementById('logViewer').innerHTML='<div class="text-muted">$ Cleared.</div>'; document.getElementById('logCount').textContent='0 entries'; }
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Load quick-access buttons
+(async function(){
+  try {
+    const res  = await fetch('/api/inventory');
+    const data = await res.json();
+    const fns  = (data.resources||[]).filter(r=>r.type==='Lambda Function').map(r=>r.name);
+    const qb   = document.getElementById('quickButtons');
+    if (fns.length){
+      qb.innerHTML = fns.map(fn =>
+        `<button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="quickLoad('${fn}')">
+          <i class="fa-solid fa-lambda me-1"></i>${fn}
+        </button>`
+      ).join('');
+    } else {
+      qb.innerHTML='<span class="text-muted" style="font-size:.83rem">No Lambda functions found. Deploy a pipeline first.</span>';
+    }
+  } catch(e){ document.getElementById('quickButtons').innerHTML='<span class="text-muted" style="font-size:.83rem">Could not load functions.</span>'; }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Order Workflow — Serverless Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-cart-shopping me-2" style="color:var(--sf-accent)"></i>Order Processing Workflow</h1>
+  {% if deployment and deployment.status == 'ACTIVE' %}
+  <span class="badge badge-active fs-6 px-3 py-2 pulse">● Workflow Active</span>
+  {% else %}
+  <span class="badge badge-destroyed fs-6 px-3 py-2">○ Not Deployed</span>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <!-- LEFT -->
+  <div class="col-lg-5">
+    <div class="card-sf mb-3">
+      <div class="card-header"><i class="fa-solid fa-rocket me-2" style="color:var(--sf-accent)"></i>Deploy Workflow</div>
+      <div class="card-body">
+        <form id="deployForm" autocomplete="off">
+          <div class="mb-3">
+            <label class="form-label">Project Name</label>
+            <input type="text" class="form-control" id="projectName" value="OrderFactory" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">AWS Region</label>
+            <select class="form-select" id="region">
+              {% for val, label in regions %}
+              <option value="{{ val }}" {% if val == 'us-east-1' %}selected{% endif %}>{{ val }} — {{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">State Machine Name</label>
+            <input type="text" class="form-control" id="stateMachineName" value="OrderProcessing">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">EventBridge Rule Name</label>
+            <input type="text" class="form-control" id="ebRuleName" value="OrderEventRule">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">DLQ Name</label>
+            <input type="text" class="form-control" id="dlqName" value="OrderDLQ">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notification Email <span class="text-danger">*</span></label>
+            <input type="email" class="form-control" id="email" placeholder="orders@company.com" required>
+          </div>
+          <button type="submit" class="btn btn-sf-primary w-100 py-2" id="deployBtn">
+            <i class="fa-solid fa-rocket me-2"></i>Deploy Workflow
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card-sf" id="progressCard" style="display:none">
+      <div class="card-header"><i class="fa-solid fa-spinner fa-spin me-2 text-info"></i>Deployment Progress</div>
+      <div class="card-body" id="progressSteps"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="col-lg-7">
+    {% if deployment and deployment.status == 'ACTIVE' %}
+
+    <!-- Execute order -->
+    <div class="card-sf mb-3">
+      <div class="card-header"><i class="fa-solid fa-bolt me-2 text-warning"></i>Start Order Execution</div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-sm-5">
+            <label class="form-label">Customer Name</label>
+            <input type="text" class="form-control" id="customerName" value="Arjun Mehta">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Amount (USD)</label>
+            <input type="number" class="form-control" id="amount" value="349.99" step="0.01" min="0.01">
+          </div>
+          <div class="col-sm-3 d-flex align-items-end">
+            <button class="btn btn-sf-primary w-100" id="executeBtn" onclick="executeOrder()">
+              <i class="fa-solid fa-play me-1"></i>Start
+            </button>
+          </div>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="simulateFailure">
+          <label class="form-check-label fw-semibold" for="simulateFailure" style="color:var(--sf-warning);font-size:.84rem">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i>Simulate Payment Failure (triggers retries → DLQ)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Execution visualisation -->
+    <div class="card-sf mb-3" id="execCard" style="display:none">
+      <div class="card-header justify-content-between">
+        <span><i class="fa-solid fa-diagram-project me-2 text-info"></i>Execution Trace</span>
+        <span id="execBadge" class="badge badge-deploying pulse">Running</span>
+      </div>
+      <div class="card-body">
+
+        <!-- State flow nodes -->
+        <div class="d-flex flex-wrap align-items-center gap-1 mb-3" id="stateFlow">
+          <div class="sf-node" id="sn1">Order Received</div>
+          <span class="text-muted">→</span>
+          <div class="sf-node" id="sn2">Validate Order</div>
+          <span class="text-muted">→</span>
+          <div class="sf-node" id="sn3">Process Payment</div>
+          <span class="text-muted">→</span>
+          <div class="sf-node" id="sn4">Send Notification</div>
+          <span class="text-muted">→</span>
+          <div class="sf-node" id="sn5">Completed</div>
+        </div>
+
+        <!-- Failure path -->
+        <div id="failurePath" style="display:none">
+          <hr style="border-color:var(--sf-border)">
+          <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.82rem">
+            <span style="color:var(--sf-danger)"><i class="fa-solid fa-circle-xmark me-1"></i>Failure path:</span>
+            <span id="retry1" class="badge badge-failed" style="display:none">Retry 1</span>
+            <span id="retry2" class="badge badge-failed" style="display:none">Retry 2</span>
+            <span id="retry3" class="badge badge-failed" style="display:none">Retry 3</span>
+            <span id="dlqBadge" style="display:none" class="badge badge-failed">→ Moved to SQS DLQ</span>
+          </div>
+        </div>
+
+        <!-- Event log -->
+        <div class="mt-3 log-viewer" id="execLog" style="min-height:120px;max-height:200px;"></div>
+      </div>
+    </div>
+
+    <!-- Resources table -->
+    <div class="card-sf">
+      <div class="card-header"><i class="fa-solid fa-list me-2"></i>Deployed Resources</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-borderless mb-0">
+          <thead><tr><th class="ps-4">Resource</th><th>Type</th><th>ARN</th></tr></thead>
+          <tbody>
+          {% for key, res in deployment.resources.items() %}
+          <tr>
+            <td class="ps-4 fw-semibold" style="font-size:.83rem">{{ res.name }}</td>
+            <td><span class="badge bg-secondary" style="font-size:.68rem">{{ res.type }}</span></td>
+            <td><span class="arn-cell d-inline-block" title="{{ res.arn }}">{{ res.arn }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="card-sf">
+      <div class="card-body text-center py-5">
+        <i class="fa-solid fa-diagram-project fa-4x mb-3 text-muted opacity-25"></i>
+        <h5 class="text-muted mb-2">Workflow Not Deployed</h5>
+        <p class="text-muted mb-0" style="font-size:.85rem">Fill in the form on the left and click Deploy Workflow.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_css %}
+<style>
+.sf-node{padding:.35rem .85rem;border-radius:2rem;border:1px solid var(--sf-border);background:var(--sf-surface2);font-size:.75rem;color:var(--sf-muted);transition:all .3s;}
+.sf-node.active{border-color:var(--sf-accent);background:rgba(6,182,212,.15);color:#67e8f9;}
+.sf-node.done{border-color:var(--sf-success);background:rgba(16,185,129,.15);color:#10b981;}
+.sf-node.error{border-color:var(--sf-danger);background:rgba(239,68,68,.15);color:#ef4444;}
+</style>
+{% endblock %}
+{% block extra_js %}
+<script>
+// ── Deploy ─────────────────────────────────────────────────────────────────
+document.getElementById('deployForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const btn = document.getElementById('deployBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deploying…';
+  document.getElementById('progressCard').style.display = '';
+
+  const payload = {
+    project_name:       document.getElementById('projectName').value,
+    region:             document.getElementById('region').value,
+    state_machine_name: document.getElementById('stateMachineName').value,
+    eb_rule_name:       document.getElementById('ebRuleName').value,
+    dlq_name:           document.getElementById('dlqName').value,
+    email:              document.getElementById('email').value,
+  };
+  try {
+    const res  = await fetch('/api/deploy/order', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const data = await res.json();
+    renderSteps(data.steps || []);
+    if (data.success) { showToast('Workflow deployed!','success'); setTimeout(()=>location.reload(),1800); }
+    else { btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-rocket me-2"></i>Deploy Workflow'; }
+  } catch(err) {
+    btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-rocket me-2"></i>Deploy Workflow';
+  }
+});
+
+function renderSteps(steps){
+  const c = document.getElementById('progressSteps'); c.innerHTML='';
+  steps.forEach(s => {
+    const ok = s.status==='ok';
+    c.innerHTML += `<div class="step-item"><div class="step-dot ${s.status}"><i class="fa-solid ${ok?'fa-check':'fa-xmark'}"></i></div><span>${s.message}</span></div>`;
+  });
+}
+
+// ── Execute ─────────────────────────────────────────────────────────────────
+async function executeOrder(){
+  const btn = document.getElementById('executeBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
+  resetViz();
+  document.getElementById('execCard').style.display='';
+
+  const payload = {
+    customer_name:    document.getElementById('customerName').value,
+    amount:           document.getElementById('amount').value,
+    simulate_failure: document.getElementById('simulateFailure').checked,
+  };
+  try {
+    const res  = await fetch('/api/order/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data = await res.json();
+    if (!data.success){ logEvent('Error: '+data.error,'err'); btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play me-1"></i>Start'; return; }
+    if (payload.simulate_failure) animateFailure();
+    else animateSuccess();
+  } catch(err){ logEvent('Network error: '+err.message,'err'); }
+  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-play me-1"></i>Start';
+}
+
+function resetViz(){
+  [1,2,3,4,5].forEach(i=>{ const n=document.getElementById('sn'+i); if(n){n.className='sf-node';} });
+  ['retry1','retry2','retry3','dlqBadge'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  const fp=document.getElementById('failurePath'); if(fp) fp.style.display='none';
+  document.getElementById('execLog').innerHTML='';
+  const b=document.getElementById('execBadge'); if(b){b.textContent='Running';b.className='badge badge-deploying pulse';}
+}
+
+function setNode(i,cls){ const n=document.getElementById('sn'+i); if(n) n.className='sf-node '+cls; }
+
+function logEvent(msg,type='info'){
+  const c=document.getElementById('execLog');
+  const colors={info:'#67e8f9',success:'#10b981',err:'#ef4444',warn:'#f59e0b'};
+  c.innerHTML=`<div class="log-entry${type==='err'?' err':''}" style="color:${colors[type]||colors.info}">[${new Date().toLocaleTimeString()}] ${msg}</div>`+c.innerHTML;
+}
+
+function animateSuccess(){
+  const b=document.getElementById('execBadge');
+  setTimeout(()=>{ setNode(1,'active'); logEvent('Execution started — Order Received'); },300);
+  setTimeout(()=>{ setNode(1,'done'); setNode(2,'active'); logEvent('ValidateOrder: started'); },1200);
+  setTimeout(()=>{ setNode(2,'done'); setNode(3,'active'); logEvent('ValidateOrder: VALIDATED ✓','success'); logEvent('ProcessPayment: started'); },2500);
+  setTimeout(()=>{ setNode(3,'done'); setNode(4,'active'); logEvent('ProcessPayment: SUCCESS ✓','success'); logEvent('SendNotification: started'); },4200);
+  setTimeout(()=>{ setNode(4,'done'); setNode(5,'done'); logEvent('SendNotification: email dispatched ✓','success'); logEvent('Execution SUCCEEDED','success'); b.textContent='Succeeded'; b.className='badge badge-active'; },5800);
+}
+
+function animateFailure(){
+  const b=document.getElementById('execBadge');
+  const fp=document.getElementById('failurePath');
+  setTimeout(()=>{ setNode(1,'active'); logEvent('Execution started — Order Received'); },300);
+  setTimeout(()=>{ setNode(1,'done'); setNode(2,'active'); logEvent('ValidateOrder: started'); },1200);
+  setTimeout(()=>{ setNode(2,'done'); setNode(3,'active'); logEvent('ValidateOrder: VALIDATED ✓','success'); logEvent('ProcessPayment: started'); },2500);
+  setTimeout(()=>{ logEvent('ProcessPayment: PAYMENT_FAILED — gateway declined','err'); fp.style.display=''; },3800);
+  setTimeout(()=>{ document.getElementById('retry1').style.display=''; logEvent('Retry 1/3 — waiting 2s…','warn'); },5000);
+  setTimeout(()=>{ document.getElementById('retry2').style.display=''; logEvent('Retry 2/3 — waiting 4s…','warn'); },7500);
+  setTimeout(()=>{ document.getElementById('retry3').style.display=''; logEvent('Retry 3/3 — waiting 8s…','warn'); },10500);
+  setTimeout(()=>{ setNode(3,'error'); document.getElementById('dlqBadge').style.display=''; logEvent('All retries exhausted — message sent to SQS DLQ','err'); b.textContent='Failed'; b.className='badge badge-failed'; },13000);
+}
+</script>
+{% endblock %}

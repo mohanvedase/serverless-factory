@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{% block title %}Serverless Automation Factory{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}"/>
+<style>
+:root{
+  --sf-primary:#7c3aed;--sf-primary-light:#a78bfa;--sf-accent:#06b6d4;
+  --sf-success:#10b981;--sf-warning:#f59e0b;--sf-danger:#ef4444;
+  --sf-bg:#0d0d1a;--sf-surface:#161625;--sf-surface2:#1e1e32;
+  --sf-border:rgba(124,58,237,.2);--sf-text:#e2e8f0;--sf-muted:#94a3b8;
+}
+[data-bs-theme="light"]{
+  --sf-bg:#f0f2ff;--sf-surface:#fff;--sf-surface2:#f8f9ff;
+  --sf-border:rgba(124,58,237,.15);--sf-text:#1e293b;--sf-muted:#64748b;
+}
+*{box-sizing:border-box;}
+body{background:var(--sf-bg);color:var(--sf-text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;margin:0;}
+
+/* ── Sidebar ── */
+.sidebar{width:255px;min-height:100vh;background:var(--sf-surface);border-right:1px solid var(--sf-border);position:fixed;left:0;top:0;z-index:200;display:flex;flex-direction:column;transition:transform .3s;}
+.sidebar-brand{padding:1.25rem 1.5rem;background:linear-gradient(135deg,#7c3aed 0%,#4f46e5 100%);border-bottom:1px solid rgba(255,255,255,.1);}
+.sidebar-brand .eyebrow{font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;opacity:.8;margin:0;color:#c4b5fd;}
+.sidebar-brand h4{font-size:.95rem;font-weight:800;margin:.2rem 0 0;line-height:1.25;color:#fff;}
+.nav-section{padding:.75rem 1.25rem .2rem;font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;color:var(--sf-muted);font-weight:700;}
+.sidebar .nav-link{color:var(--sf-muted);padding:.55rem 1.25rem;display:flex;align-items:center;gap:.7rem;font-size:.84rem;border-left:3px solid transparent;transition:all .18s;}
+.sidebar .nav-link i{width:16px;text-align:center;font-size:.9rem;}
+.sidebar .nav-link:hover,.sidebar .nav-link.active{color:var(--sf-primary-light);background:rgba(124,58,237,.08);border-left-color:var(--sf-primary);}
+
+/* ── Main content ── */
+.main-content{margin-left:255px;padding:1.5rem;min-height:100vh;}
+
+/* ── Topbar ── */
+.topbar{background:var(--sf-surface);border:1px solid var(--sf-border);border-radius:.75rem;padding:.9rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;}
+.page-title{font-size:1.2rem;font-weight:800;margin:0;}
+
+/* ── Cards ── */
+.card-sf{background:var(--sf-surface);border:1px solid var(--sf-border);border-radius:.875rem;overflow:hidden;}
+.card-sf .card-header{background:var(--sf-surface2);border-bottom:1px solid var(--sf-border);padding:.8rem 1.2rem;font-weight:700;font-size:.84rem;display:flex;align-items:center;}
+.card-sf .card-body{padding:1.2rem;}
+
+/* ── Stat cards ── */
+.stat-card{background:var(--sf-surface);border:1px solid var(--sf-border);border-radius:.875rem;padding:1.2rem;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--sf-primary);}
+.stat-card.c-accent::before{background:var(--sf-accent);}
+.stat-card.c-success::before{background:var(--sf-success);}
+.stat-card.c-warning::before{background:var(--sf-warning);}
+.stat-card.c-danger::before{background:var(--sf-danger);}
+.stat-value{font-size:2rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.7rem;color:var(--sf-muted);text-transform:uppercase;letter-spacing:.07em;margin-top:.2rem;}
+.stat-icon{position:absolute;right:1.2rem;top:50%;transform:translateY(-50%);font-size:2.2rem;opacity:.07;}
+
+/* ── Badges ── */
+.badge-active{background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);}
+.badge-deploying{background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.3);}
+.badge-failed{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3);}
+.badge-destroyed{background:rgba(148,163,184,.12);color:#94a3b8;border:1px solid rgba(148,163,184,.25);}
+
+/* ── Buttons ── */
+.btn-sf-primary{background:linear-gradient(135deg,#7c3aed,#4f46e5);border:none;color:#fff;font-weight:700;border-radius:.5rem;transition:all .2s;}
+.btn-sf-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,.4);color:#fff;}
+.btn-sf-danger{background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;color:#fff;font-weight:700;border-radius:.5rem;transition:all .2s;}
+.btn-sf-danger:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(239,68,68,.35);color:#fff;}
+
+/* ── Steps ── */
+.step-item{display:flex;align-items:center;gap:.75rem;padding:.45rem 0;border-bottom:1px solid var(--sf-border);font-size:.84rem;}
+.step-item:last-child{border-bottom:none;}
+.step-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;}
+.step-dot.ok{background:rgba(16,185,129,.2);color:#10b981;}
+.step-dot.error{background:rgba(239,68,68,.2);color:#ef4444;}
+.step-dot.running{background:rgba(6,182,212,.2);color:#06b6d4;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── Tables ── */
+.table{color:var(--sf-text);}
+.table th{color:var(--sf-muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:700;padding:.65rem .75rem;}
+.table td{font-size:.84rem;vertical-align:middle;padding:.6rem .75rem;}
+.table tbody tr:hover{background:rgba(124,58,237,.04);}
+.arn-cell{font-family:'Cascadia Code','Consolas',monospace;font-size:.7rem;color:var(--sf-muted);max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.arn-cell:hover{color:var(--sf-primary-light);}
+
+/* ── Forms ── */
+.form-control,.form-select{background:var(--sf-surface2);border-color:var(--sf-border);color:var(--sf-text);border-radius:.5rem;font-size:.875rem;}
+.form-control:focus,.form-select:focus{background:var(--sf-surface2);border-color:var(--sf-primary);color:var(--sf-text);box-shadow:0 0 0 3px rgba(124,58,237,.15);}
+.form-label{font-size:.8rem;font-weight:700;color:var(--sf-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;}
+.form-text{font-size:.72rem;}
+
+/* ── Timeline ── */
+.timeline-item{position:relative;padding-left:1.75rem;padding-bottom:.9rem;}
+.timeline-item::before{content:'';position:absolute;left:.45rem;top:.5rem;bottom:0;width:2px;background:var(--sf-border);}
+.timeline-item::after{content:'';position:absolute;left:.1rem;top:.4rem;width:.75rem;height:.75rem;border-radius:50%;background:var(--sf-primary);}
+.timeline-item.done::after{background:var(--sf-success);}
+.timeline-item.error::after{background:var(--sf-danger);}
+.timeline-item:last-child::before{display:none;}
+
+/* ── Drop zone ── */
+.drop-zone{border:2px dashed var(--sf-border);border-radius:.75rem;padding:2rem;text-align:center;cursor:pointer;transition:all .2s;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--sf-primary);background:rgba(124,58,237,.05);}
+
+/* ── Modals ── */
+.modal-content{background:var(--sf-surface);border:1px solid var(--sf-border);border-radius:.875rem;}
+.modal-header{border-bottom:1px solid var(--sf-border);}
+.modal-footer{border-top:1px solid var(--sf-border);}
+
+/* ── Log viewer ── */
+.log-viewer{background:var(--sf-bg);padding:1rem;min-height:350px;max-height:550px;overflow-y:auto;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:.76rem;border-radius:0 0 .875rem .875rem;}
+.log-entry{padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.log-entry.err{color:var(--sf-danger);}
+.log-entry.warn{color:var(--sf-warning);}
+
+/* ── Misc ── */
+.pulse{animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.fade-in{animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--sf-bg);}
+::-webkit-scrollbar-thumb{background:rgba(124,58,237,.3);border-radius:3px;}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);}
+  .main-content{margin-left:0;}
+}
+</style>
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <p class="eyebrow"><i class="fa-solid fa-microchip me-1"></i>AWS Training Lab</p>
+    <h4>Serverless<br>Automation Factory</h4>
+  </div>
+
+  <div class="nav-section">Pipelines</div>
+  <nav class="nav flex-column">
+    <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+      <i class="fa-solid fa-gauge-high"></i> Dashboard
+    </a>
+    <a class="nav-link {% if request.endpoint == 'resume_pipeline' %}active{% endif %}" href="{{ url_for('resume_pipeline') }}">
+      <i class="fa-solid fa-file-lines"></i> Resume Pipeline
+    </a>
+    <a class="nav-link {% if request.endpoint == 'order_pipeline' %}active{% endif %}" href="{{ url_for('order_pipeline') }}">
+      <i class="fa-solid fa-cart-shopping"></i> Order Workflow
+    </a>
+  </nav>
+
+  <div class="nav-section">Monitoring</div>
+  <nav class="nav flex-column">
+    <a class="nav-link {% if request.endpoint == 'inventory' %}active{% endif %}" href="{{ url_for('inventory') }}">
+      <i class="fa-solid fa-layer-group"></i> Resource Inventory
+    </a>
+    <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">
+      <i class="fa-solid fa-clock-rotate-left"></i> Deploy History
+    </a>
+    <a class="nav-link {% if request.endpoint == 'logs' %}active{% endif %}" href="{{ url_for('logs') }}">
+      <i class="fa-solid fa-terminal"></i> CloudWatch Logs
+    </a>
+  </nav>
+
+  <div class="nav-section">Operations</div>
+  <nav class="nav flex-column">
+    <a class="nav-link {% if request.endpoint == 'destroy' %}active{% endif %}" href="{{ url_for('destroy') }}" style="color:{% if request.endpoint == 'destroy' %}var(--sf-danger){% else %}var(--sf-muted){% endif %}">
+      <i class="fa-solid fa-trash-can" style="color:var(--sf-danger)"></i> Destroy Infrastructure
+    </a>
+  </nav>
+
+  <div class="mt-auto p-3 border-top" style="border-color:var(--sf-border)!important">
+    <div class="d-flex align-items-center justify-content-between">
+      <small class="text-muted" style="font-size:.72rem">Dark Mode</small>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="themeToggle" checked>
+      </div>
+    </div>
+    <div class="mt-2" style="font-size:.68rem;color:var(--sf-muted)">
+      <i class="fa-solid fa-circle text-success me-1" style="font-size:.5rem"></i>App Running
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main-content fade-in">
+  {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script>
+  // Theme toggle
+  const toggle = document.getElementById('themeToggle');
+  const saved  = localStorage.getItem('sf-theme') || 'dark';
+  document.documentElement.setAttribute('data-bs-theme', saved);
+  toggle.checked = saved === 'dark';
+  toggle.addEventListener('change', function(){
+    const theme = this.checked ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('sf-theme', theme);
+  });
+
+  // Mobile sidebar toggle
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('sidebar').classList.remove('open');
+  });
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

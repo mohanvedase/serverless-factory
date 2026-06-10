@@ -1,0 +1,22 @@
+/* Extra tweaks for Serverless Factory UI */
+
+/* Smooth page transitions */
+.main-content { animation: fadeIn .25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Drop zone hover */
+#dropZone:hover { border-color: var(--sf-primary) !important; background: rgba(124,58,237,.05); }
+
+/* Table row hover */
+.table tbody tr:hover { background: rgba(124,58,237,.04); }
+
+/* ARN copy hint */
+.arn-cell { cursor: pointer; transition: color .15s; }
+.arn-cell:hover { color: var(--sf-primary-light) !important; }
+
+/* Sidebar bottom border pulse when active */
+.sidebar .nav-link.active { position: relative; }
+
+/* Scrollbar for log container */
+#logsContainer::-webkit-scrollbar { width: 5px; }
+#logsContainer::-webkit-scrollbar-thumb { background: rgba(124,58,237,.3); border-radius: 3px; }

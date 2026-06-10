@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Destroy Infrastructure — Serverless Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-trash-can me-2" style="color:var(--sf-danger)"></i>Destroy Infrastructure</h1>
+</div>
+
+<div class="alert mb-4" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:.75rem;color:#fca5a5">
+  <i class="fa-solid fa-triangle-exclamation me-2"></i>
+  <strong>Irreversible Action:</strong> Destroying infrastructure permanently deletes all AWS resources, stored data, and configurations. This cannot be undone.
+</div>
+
+<div class="row g-3 mb-4">
+
+  <!-- Resume Pipeline -->
+  <div class="col-lg-6">
+    <div class="card-sf h-100" style="border-top:3px solid var(--sf-primary)">
+      <div class="card-header">
+        <i class="fa-solid fa-file-lines me-2" style="color:var(--sf-primary-light)"></i>Resume Processing Pipeline
+      </div>
+      <div class="card-body d-flex flex-column">
+        {% if resume_dep and resume_dep.status == 'ACTIVE' %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2 pb-2" style="border-bottom:1px solid var(--sf-border)">
+            <span class="text-muted" style="font-size:.82rem">Status</span>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted" style="font-size:.82rem">Region</span>
+            <code style="font-size:.78rem">{{ resume_dep.config.region }}</code>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted" style="font-size:.82rem">Resources</span>
+            <span class="badge bg-secondary">{{ resume_dep.resources_count }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted" style="font-size:.82rem">S3 Bucket</span>
+            <code style="font-size:.75rem">{{ resume_dep.config.bucket_name }}</code>
+          </div>
+        </div>
+
+        <div class="mb-3" style="background:var(--sf-surface2);border-radius:.5rem;padding:.75rem">
+          <p class="text-muted mb-2" style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Destruction Order</p>
+          <ol class="text-muted mb-0" style="font-size:.8rem;padding-left:1.2rem;line-height:1.8">
+            <li>Remove S3 event trigger</li>
+            <li>Delete Lambda function</li>
+            <li>Delete SNS subscriptions &amp; topic</li>
+            <li>Delete DynamoDB table &amp; all records</li>
+            <li>Empty &amp; delete S3 bucket</li>
+            <li>Delete IAM role</li>
+          </ol>
+        </div>
+
+        <button class="btn btn-sf-danger mt-auto w-100" data-bs-toggle="modal" data-bs-target="#modalResume">
+          <i class="fa-solid fa-trash-can me-2"></i>Destroy Resume Pipeline
+        </button>
+        {% elif resume_dep and resume_dep.status == 'DESTROYED' %}
+        <div class="text-center py-4 text-muted flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+          <i class="fa-solid fa-circle-check fa-3x mb-3" style="color:var(--sf-success);opacity:.6"></i>
+          <p>Resume Pipeline has already been destroyed.</p>
+          <span class="badge badge-destroyed">Destroyed</span>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+          <i class="fa-solid fa-circle-info fa-3x mb-3 opacity-25"></i>
+          <p>No active Resume Pipeline found.</p>
+          <a href="{{ url_for('resume_pipeline') }}" class="btn btn-sf-primary btn-sm">Deploy Pipeline →</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Pipeline -->
+  <div class="col-lg-6">
+    <div class="card-sf h-100" style="border-top:3px solid var(--sf-accent)">
+      <div class="card-header">
+        <i class="fa-solid fa-cart-shopping me-2" style="color:var(--sf-accent)"></i>Order Processing Workflow
+      </div>
+      <div class="card-body d-flex flex-column">
+        {% if order_dep and order_dep.status == 'ACTIVE' %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2 pb-2" style="border-bottom:1px solid var(--sf-border)">
+            <span class="text-muted" style="font-size:.82rem">Status</span>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted" style="font-size:.82rem">Region</span>
+            <code style="font-size:.78rem">{{ order_dep.config.region }}</code>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted" style="font-size:.82rem">Resources</span>
+            <span class="badge bg-secondary">{{ order_dep.resources_count }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted" style="font-size:.82rem">State Machine</span>
+            <code style="font-size:.75rem">{{ order_dep.config.state_machine_name }}</code>
+          </div>
+        </div>
+
+        <div class="mb-3" style="background:var(--sf-surface2);border-radius:.5rem;padding:.75rem">
+          <p class="text-muted mb-2" style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Destruction Order</p>
+          <ol class="text-muted mb-0" style="font-size:.8rem;padding-left:1.2rem;line-height:1.8">
+            <li>Disable &amp; delete EventBridge rule</li>
+            <li>Delete Step Functions state machine</li>
+            <li>Delete 3 Lambda functions</li>
+            <li>Delete SNS topic &amp; subscriptions</li>
+            <li>Delete SQS dead-letter queue</li>
+            <li>Delete IAM roles (Lambda, SF, EB)</li>
+          </ol>
+        </div>
+
+        <button class="btn btn-sf-danger mt-auto w-100" data-bs-toggle="modal" data-bs-target="#modalOrder">
+          <i class="fa-solid fa-trash-can me-2"></i>Destroy Order Pipeline
+        </button>
+        {% elif order_dep and order_dep.status == 'DESTROYED' %}
+        <div class="text-center py-4 text-muted flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+          <i class="fa-solid fa-circle-check fa-3x mb-3" style="color:var(--sf-success);opacity:.6"></i>
+          <p>Order Pipeline has already been destroyed.</p>
+          <span class="badge badge-destroyed">Destroyed</span>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+          <i class="fa-solid fa-circle-info fa-3x mb-3 opacity-25"></i>
+          <p>No active Order Pipeline found.</p>
+          <a href="{{ url_for('order_pipeline') }}" class="btn btn-sf-primary btn-sm">Deploy Pipeline →</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Progress card -->
+<div class="card-sf" id="destroyProgress" style="display:none;border-top:3px solid var(--sf-danger)">
+  <div class="card-header">
+    <i class="fa-solid fa-spinner fa-spin me-2" style="color:var(--sf-danger)"></i>Destroying Infrastructure…
+  </div>
+  <div class="card-body" id="destroySteps"></div>
+</div>
+
+<!-- Modal — Resume -->
+<div class="modal fade" id="modalResume" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="color:var(--sf-danger)"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirm Destruction</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to permanently destroy the <strong>Resume Processing Pipeline</strong>:</p>
+        <ul class="text-muted" style="font-size:.85rem">
+          <li>S3 bucket and all uploaded resume files</li>
+          <li>Lambda function (ResumeProcessor)</li>
+          <li>DynamoDB table and all stored records</li>
+          <li>SNS topic and email subscriptions</li>
+          <li>IAM execution role</li>
+        </ul>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="chkResume" onchange="document.getElementById('btnResume').disabled=!this.checked">
+          <label class="form-check-label" for="chkResume" style="font-size:.85rem">I understand this is permanent and cannot be undone</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sf-danger btn-sm" id="btnResume" onclick="doDestroy('resume')" disabled>
+          <i class="fa-solid fa-trash-can me-2"></i>Destroy Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal — Order -->
+<div class="modal fade" id="modalOrder" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="color:var(--sf-danger)"><i class="fa-solid fa-triangle-exclamation me-2"></i>Confirm Destruction</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to permanently destroy the <strong>Order Processing Workflow</strong> and all 9+ associated AWS resources.</p>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="chkOrder" onchange="document.getElementById('btnOrder').disabled=!this.checked">
+          <label class="form-check-label" for="chkOrder" style="font-size:.85rem">I understand this is permanent and cannot be undone</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sf-danger btn-sm" id="btnOrder" onclick="doDestroy('order')" disabled>
+          <i class="fa-solid fa-trash-can me-2"></i>Destroy Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+async function doDestroy(type){
+  // Close any open modal
+  ['modalResume','modalOrder'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) bootstrap.Modal.getInstance(el)?.hide();
+  });
+
+  document.getElementById('destroyProgress').style.display = '';
+  document.getElementById('destroySteps').innerHTML = '<div class="text-muted" style="font-size:.83rem"><span class="spinner-border spinner-border-sm me-2 text-danger"></span>Starting destruction sequence…</div>';
+
+  try {
+    const res  = await fetch(`/api/destroy/${type}`, { method:'POST' });
+    const data = await res.json();
+    renderSteps(data.steps || []);
+    if (data.success) {
+      showToast('Infrastructure destroyed successfully', 'success');
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      showToast(data.error || 'Destruction failed', 'error');
+    }
+  } catch(err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function renderSteps(steps){
+  const c = document.getElementById('destroySteps');
+  c.innerHTML = '';
+  steps.forEach(s => {
+    const ok = s.status === 'ok';
+    c.innerHTML += `<div class="step-item">
+      <div class="step-dot ${s.status}"><i class="fa-solid ${ok ? 'fa-check' : 'fa-xmark'}"></i></div>
+      <span>${s.message}</span>
+    </div>`;
+  });
+}
+</script>
+{% endblock %}

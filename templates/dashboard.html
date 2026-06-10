@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Serverless Automation Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-gauge-high me-2" style="color:var(--sf-primary-light)"></i>Dashboard</h1>
+  <div class="d-flex align-items-center gap-3">
+    <span class="badge badge-active px-3 py-2 pulse">● Live</span>
+    <span id="clock" class="text-muted" style="font-size:.8rem;font-family:monospace"></span>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--sf-primary-light)">{{ stats.total }}</div>
+      <div class="stat-label">Total Deployments</div>
+      <i class="fa-solid fa-rocket stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card c-success">
+      <div class="stat-value" style="color:var(--sf-success)">{{ stats.active }}</div>
+      <div class="stat-label">Active Pipelines</div>
+      <i class="fa-solid fa-circle-check stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card c-warning">
+      <div class="stat-value" style="color:var(--sf-warning)">{{ stats.failed }}</div>
+      <div class="stat-label">Failed</div>
+      <i class="fa-solid fa-triangle-exclamation stat-icon"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card c-accent">
+      <div class="stat-value" style="color:var(--sf-accent)">{{ stats.destroyed }}</div>
+      <div class="stat-label">Destroyed</div>
+      <i class="fa-solid fa-trash stat-icon"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Pipeline Cards -->
+<div class="row g-3 mb-4">
+  <!-- Resume Pipeline -->
+  <div class="col-lg-6">
+    <div class="card-sf h-100">
+      <div class="card-header justify-content-between">
+        <span><i class="fa-solid fa-file-lines me-2" style="color:var(--sf-primary-light)"></i>Resume Processing Pipeline</span>
+        <span class="badge badge-active ms-auto">HR Use Case</span>
+      </div>
+      <div class="card-body">
+        <svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg" class="w-100 mb-3">
+          <defs>
+            <linearGradient id="ga" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#7c3aed"/>
+              <stop offset="100%" style="stop-color:#06b6d4"/>
+            </linearGradient>
+            <marker id="ar1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L0,7 L7,3.5 z" fill="#06b6d4"/>
+            </marker>
+          </defs>
+          <rect x="8" y="18" width="90" height="44" rx="8" fill="rgba(124,58,237,.18)" stroke="#7c3aed" stroke-width="1.5"/>
+          <text x="53" y="37" text-anchor="middle" font-size="9" fill="#c4b5fd" font-weight="700">S3 BUCKET</text>
+          <text x="53" y="52" text-anchor="middle" font-size="7.5" fill="#94a3b8">Resume Upload</text>
+          <line x1="98" y1="40" x2="118" y2="40" stroke="url(#ga)" stroke-width="1.8" marker-end="url(#ar1)"/>
+          <text x="108" y="33" text-anchor="middle" font-size="7" fill="#7c3aed">Trigger</text>
+          <rect x="120" y="18" width="90" height="44" rx="8" fill="rgba(6,182,212,.18)" stroke="#06b6d4" stroke-width="1.5"/>
+          <text x="165" y="37" text-anchor="middle" font-size="9" fill="#67e8f9" font-weight="700">LAMBDA</text>
+          <text x="165" y="52" text-anchor="middle" font-size="7.5" fill="#94a3b8">Process Resume</text>
+          <line x1="210" y1="40" x2="230" y2="40" stroke="url(#ga)" stroke-width="1.8" marker-end="url(#ar1)"/>
+          <rect x="232" y="18" width="100" height="44" rx="8" fill="rgba(16,185,129,.18)" stroke="#10b981" stroke-width="1.5"/>
+          <text x="282" y="37" text-anchor="middle" font-size="9" fill="#6ee7b7" font-weight="700">DYNAMODB</text>
+          <text x="282" y="52" text-anchor="middle" font-size="7.5" fill="#94a3b8">Store Record</text>
+          <line x1="332" y1="40" x2="352" y2="40" stroke="url(#ga)" stroke-width="1.8" marker-end="url(#ar1)"/>
+          <rect x="354" y="18" width="90" height="44" rx="8" fill="rgba(245,158,11,.18)" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="399" y="37" text-anchor="middle" font-size="9" fill="#fcd34d" font-weight="700">SNS</text>
+          <text x="399" y="52" text-anchor="middle" font-size="7.5" fill="#94a3b8">Email Notify</text>
+        </svg>
+        <p class="text-muted mb-3" style="font-size:.83rem">Upload a resume → S3 event triggers Lambda → metadata stored in DynamoDB → HR team notified via SNS email.</p>
+        <a href="{{ url_for('resume_pipeline') }}" class="btn btn-sf-primary btn-sm px-3">
+          <i class="fa-solid fa-rocket me-2"></i>Open Pipeline
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Workflow -->
+  <div class="col-lg-6">
+    <div class="card-sf h-100">
+      <div class="card-header justify-content-between">
+        <span><i class="fa-solid fa-cart-shopping me-2" style="color:var(--sf-accent)"></i>Order Processing Workflow</span>
+        <span class="badge badge-deploying ms-auto">E-Commerce</span>
+      </div>
+      <div class="card-body">
+        <svg viewBox="0 0 540 90" xmlns="http://www.w3.org/2000/svg" class="w-100 mb-3">
+          <defs>
+            <linearGradient id="gb" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#7c3aed"/>
+              <stop offset="100%" style="stop-color:#10b981"/>
+            </linearGradient>
+            <marker id="ar2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L0,7 L7,3.5 z" fill="#10b981"/>
+            </marker>
+            <marker id="ar3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L0,7 L7,3.5 z" fill="#ef4444"/>
+            </marker>
+          </defs>
+          <rect x="4" y="18" width="76" height="40" rx="7" fill="rgba(239,68,68,.18)" stroke="#ef4444" stroke-width="1.5"/>
+          <text x="42" y="34" text-anchor="middle" font-size="7.5" fill="#fca5a5" font-weight="700">EVENTBRIDGE</text>
+          <text x="42" y="48" text-anchor="middle" font-size="7" fill="#94a3b8">Order Event</text>
+          <line x1="80" y1="38" x2="98" y2="38" stroke="url(#gb)" stroke-width="1.8" marker-end="url(#ar2)"/>
+          <rect x="100" y="18" width="76" height="40" rx="7" fill="rgba(124,58,237,.18)" stroke="#7c3aed" stroke-width="1.5"/>
+          <text x="138" y="34" text-anchor="middle" font-size="7.5" fill="#a78bfa" font-weight="700">STEP FN</text>
+          <text x="138" y="48" text-anchor="middle" font-size="7" fill="#94a3b8">Orchestrate</text>
+          <line x1="176" y1="38" x2="194" y2="38" stroke="url(#gb)" stroke-width="1.8" marker-end="url(#ar2)"/>
+          <rect x="196" y="18" width="80" height="40" rx="7" fill="rgba(6,182,212,.18)" stroke="#06b6d4" stroke-width="1.5"/>
+          <text x="236" y="34" text-anchor="middle" font-size="7.5" fill="#67e8f9" font-weight="700">VALIDATE</text>
+          <text x="236" y="48" text-anchor="middle" font-size="7" fill="#94a3b8">Lambda</text>
+          <line x1="276" y1="38" x2="294" y2="38" stroke="url(#gb)" stroke-width="1.8" marker-end="url(#ar2)"/>
+          <rect x="296" y="18" width="80" height="40" rx="7" fill="rgba(16,185,129,.18)" stroke="#10b981" stroke-width="1.5"/>
+          <text x="336" y="34" text-anchor="middle" font-size="7.5" fill="#6ee7b7" font-weight="700">PAYMENT</text>
+          <text x="336" y="48" text-anchor="middle" font-size="7" fill="#94a3b8">Lambda</text>
+          <line x1="376" y1="38" x2="394" y2="38" stroke="url(#gb)" stroke-width="1.8" marker-end="url(#ar2)"/>
+          <rect x="396" y="18" width="80" height="40" rx="7" fill="rgba(245,158,11,.18)" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="436" y="34" text-anchor="middle" font-size="7.5" fill="#fcd34d" font-weight="700">NOTIFY</text>
+          <text x="436" y="48" text-anchor="middle" font-size="7" fill="#94a3b8">Lambda+SNS</text>
+          <!-- DLQ failure path -->
+          <path d="M336 58 Q336 75 450 75" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4,2" fill="none" marker-end="url(#ar3)"/>
+          <rect x="457" y="65" width="68" height="24" rx="5" fill="rgba(239,68,68,.15)" stroke="#ef4444" stroke-width="1"/>
+          <text x="491" y="78" text-anchor="middle" font-size="7" fill="#fca5a5" font-weight="700">SQS DLQ</text>
+        </svg>
+        <p class="text-muted mb-3" style="font-size:.83rem">EventBridge triggers Step Functions → Validate → Payment (with retry) → Notify. Payment failures route to SQS dead-letter queue.</p>
+        <a href="{{ url_for('order_pipeline') }}" class="btn btn-sf-primary btn-sm px-3">
+          <i class="fa-solid fa-rocket me-2"></i>Open Workflow
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Deployments -->
+<div class="card-sf">
+  <div class="card-header justify-content-between">
+    <span><i class="fa-solid fa-clock-rotate-left me-2"></i>Recent Deployments</span>
+    <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-secondary ms-auto">View All →</a>
+  </div>
+  <div class="card-body p-0">
+    {% if deployments %}
+    <div class="table-responsive">
+    <table class="table table-borderless mb-0">
+      <thead><tr>
+        <th class="ps-4">Name</th><th>Type</th><th>Region</th><th>Resources</th><th>Status</th><th>Deployed</th>
+      </tr></thead>
+      <tbody>
+      {% for d in deployments %}
+      <tr>
+        <td class="ps-4 fw-semibold">{{ d.name }}</td>
+        <td><span class="badge bg-secondary">{{ d.type }}</span></td>
+        <td><code style="font-size:.75rem">{{ d.region }}</code></td>
+        <td><span class="badge bg-secondary">{{ d.resources_count }}</span></td>
+        <td>
+          {% if d.status == 'ACTIVE' %}<span class="badge badge-active">Active</span>
+          {% elif d.status == 'FAILED' %}<span class="badge badge-failed">Failed</span>
+          {% elif d.status == 'DESTROYED' %}<span class="badge badge-destroyed">Destroyed</span>
+          {% else %}<span class="badge bg-secondary">{{ d.status }}</span>{% endif %}
+        </td>
+        <td class="text-muted" style="font-size:.78rem">{{ d.created_at[:16].replace('T',' ') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="fa-solid fa-rocket fa-3x mb-3 opacity-25"></i>
+      <p class="mb-3">No deployments yet. Launch a pipeline to get started.</p>
+      <a href="{{ url_for('resume_pipeline') }}" class="btn btn-sf-primary btn-sm me-2">Resume Pipeline</a>
+      <a href="{{ url_for('order_pipeline') }}" class="btn btn-sf-primary btn-sm">Order Workflow</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+(function tick(){ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); setTimeout(tick,1000); })();
+</script>
+{% endblock %}

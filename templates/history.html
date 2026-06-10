@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Deployment History — Serverless Factory{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <h1 class="page-title"><i class="fa-solid fa-clock-rotate-left me-2" style="color:var(--sf-primary-light)"></i>Deployment History</h1>
+  <span class="badge bg-secondary fs-6 px-3 py-2">{{ deployments|length }} records</span>
+</div>
+
+{% if deployments %}
+<div class="card-sf mb-4">
+  <div class="card-header justify-content-between">
+    <span><i class="fa-solid fa-list me-2"></i>All Deployments</span>
+    <input class="form-control form-control-sm" id="histFilter" placeholder="Filter…" style="width:180px" oninput="filterHist()">
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-borderless mb-0" id="histTable">
+      <thead><tr>
+        <th class="ps-4">Name</th><th>Type</th><th>Region</th><th>Resources</th><th>Status</th><th>Deployed</th><th>Updated</th>
+      </tr></thead>
+      <tbody>
+      {% for d in deployments %}
+      <tr>
+        <td class="ps-4 fw-semibold" style="font-size:.83rem">{{ d.name }}</td>
+        <td>
+          <span class="badge" style="font-size:.7rem;background:{% if 'Resume' in d.type %}rgba(124,58,237,.2);color:#a78bfa{% else %}rgba(6,182,212,.2);color:#67e8f9{% endif %};border:1px solid transparent">
+            <i class="fa-solid {% if 'Resume' in d.type %}fa-file-lines{% else %}fa-cart-shopping{% endif %} me-1"></i>{{ d.type }}
+          </span>
+        </td>
+        <td><code style="font-size:.75rem">{{ d.region }}</code></td>
+        <td><span class="badge bg-secondary">{{ d.resources_count }}</span></td>
+        <td>
+          {% if d.status == 'ACTIVE' %}<span class="badge badge-active">Active</span>
+          {% elif d.status == 'FAILED' %}<span class="badge badge-failed">Failed</span>
+          {% elif d.status == 'DESTROYED' %}<span class="badge badge-destroyed">Destroyed</span>
+          {% else %}<span class="badge bg-secondary">{{ d.status }}</span>{% endif %}
+        </td>
+        <td class="text-muted" style="font-size:.75rem">{{ d.created_at[:16].replace('T',' ') }}</td>
+        <td class="text-muted" style="font-size:.75rem">{{ d.updated_at[:16].replace('T',' ') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- Resource detail cards -->
+<div class="row g-3">
+  {% for d in deployments %}
+  {% if d.resources and d.status == 'ACTIVE' %}
+  <div class="col-lg-6">
+    <div class="card-sf">
+      <div class="card-header justify-content-between">
+        <span style="font-size:.82rem">{{ d.name }}</span>
+        <span class="badge badge-active">{{ d.resources|length }} resources</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-borderless mb-0">
+          <thead><tr><th class="ps-3">Resource</th><th>Type</th><th>ARN</th></tr></thead>
+          <tbody>
+          {% for key, res in d.resources.items() %}
+          <tr>
+            <td class="ps-3 fw-semibold" style="font-size:.8rem">{{ res.name }}</td>
+            <td><span class="badge bg-secondary" style="font-size:.65rem">{{ res.type }}</span></td>
+            <td><span class="arn-cell d-inline-block" title="{{ res.arn }}">{{ res.arn }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card-sf">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="fa-solid fa-clock-rotate-left fa-4x mb-3 opacity-25"></i>
+    <h5>No Deployment History</h5>
+    <p class="mb-3">Deploy a pipeline to see it tracked here.</p>
+    <a href="{{ url_for('resume_pipeline') }}" class="btn btn-sf-primary btn-sm me-2">Resume Pipeline</a>
+    <a href="{{ url_for('order_pipeline') }}" class="btn btn-sf-primary btn-sm">Order Workflow</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+{% block extra_js %}
+<script>
+function filterHist(){
+  const q = document.getElementById('histFilter').value.toLowerCase();
+  document.querySelectorAll('#histTable tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
